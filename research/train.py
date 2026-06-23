@@ -36,7 +36,7 @@ WINDOW_PATTERN = "L"       # "L" = all full-causal (fast flash path on ROCm); "S
 
 # Optimization
 DEVICE_BATCH_SIZE = 16     # per-step micro-batch (rows); tokens/micro = DEVICE_BATCH_SIZE * SEQ_LEN
-TOTAL_BATCH_SIZE = 2 ** 16 # tokens per optimizer step (grad accumulation fills this)
+TOTAL_BATCH_SIZE = 2 ** 15 # tokens per optimizer step (grad accumulation fills this)
 MATRIX_LR = 0.02           # Muon LR for hidden matrices
 EMBEDDING_LR = 0.2         # AdamW LR for token + value embeddings
 UNEMBEDDING_LR = 0.004     # AdamW LR for the lm_head
