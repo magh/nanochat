@@ -19,7 +19,11 @@ def _detect_compute_dtype():
     if env is not None:
         return _DTYPE_MAP[env], f"set via NANOCHAT_DTYPE={env}"
     if torch.cuda.is_available():
-        # bf16 requires SM 80+ (Ampere: A100, A10, etc.)
+        if torch.version.hip is not None:
+            # ROCm/HIP (AMD). RDNA3/RDNA4 (gfx11xx/gfx12xx) and CDNA support bf16.
+            arch = getattr(torch.cuda.get_device_properties(0), "gcnArchName", "unknown")
+            return torch.bfloat16, f"auto-detected: ROCm/HIP {arch} (bf16 supported)"
+        # CUDA: bf16 requires SM 80+ (Ampere: A100, A10, etc.)
         # Older GPUs like V100 (SM 70) and T4 (SM 75) only have fp16 tensor cores
         capability = torch.cuda.get_device_capability()
         if capability >= (8, 0):
@@ -199,6 +203,18 @@ def compute_init(device_type="cuda"): # cuda|cpu|mps
         torch.cuda.set_device(device)  # make "cuda" default to this device
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
+    elif device_type == "cuda":
+        # Single-process CUDA/ROCm: if multiple GPUs are visible (e.g. an AMD
+        # discrete card alongside an integrated iGPU), prefer the most capable
+        # one (by compute-unit count) since ROCm enumeration order isn't stable.
+        best = 0
+        if torch.cuda.device_count() > 1:
+            best = max(
+                range(torch.cuda.device_count()),
+                key=lambda i: torch.cuda.get_device_properties(i).multi_processor_count,
+            )
+        device = torch.device("cuda", best)
+        torch.cuda.set_device(device)  # make "cuda" default to this device
     else:
         device = torch.device(device_type) # mps|cpu
 
@@ -226,6 +242,21 @@ class DummyWandb:
 # and PR: https://github.com/karpathy/nanochat/pull/147
 def get_peak_flops(device_name: str) -> float:
     name = device_name.lower()
+
+    # On ROCm/HIP, get_device_name often returns a generic string (e.g.
+    # "AMD Radeon Graphics") that collides across products, so prefer the gfx
+    # architecture name when available for a reliable match.
+    if torch.version.hip is not None and torch.cuda.is_available():
+        arch = getattr(torch.cuda.get_device_properties(0), "gcnArchName", "")
+        # strip feature flags like "gfx1201:xnack-" -> "gfx1201"
+        arch = arch.split(":")[0].lower()
+        # dense bf16/fp16 matrix peak (TFLOPS) per AMD spec sheets
+        _AMD_ARCH_FLOPS = {
+            "gfx1201": 95.7e12,   # Radeon AI PRO R9700 / RX 9070 series (RDNA4)
+            "gfx1200": 49.2e12,   # RX 9060 series (RDNA4)
+        }
+        if arch in _AMD_ARCH_FLOPS:
+            return _AMD_ARCH_FLOPS[arch]
 
     # Table order matters: more specific patterns first.
     _PEAK_FLOPS_TABLE = (

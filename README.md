@@ -32,7 +32,7 @@ See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for more docs on how to interpret a
 nanochat uses [uv](https://docs.astral.sh/uv/) for dependency management. To install:
 
 ```bash
-uv sync --extra gpu    # Use for CUDA (A100/H100/etc.)
+uv sync --extra gpu    # Use for AMD ROCm 7.2 (gfx11xx/gfx12xx, e.g. Radeon AI PRO R9700)
 uv sync --extra cpu    # (or) Use for CPU-only / MPS
 source .venv/bin/activate
 ```
@@ -42,6 +42,13 @@ For development (adds pytest, matplotlib, ipykernel, transformers, etc.):
 ```bash
 uv sync --extra gpu --group dev
 ```
+
+> **Note on GPU backend:** the `gpu` extra installs PyTorch built for **AMD ROCm 7.2**
+> (CUDA is no longer the default). It targets RDNA3/RDNA4 consumer/pro cards
+> (gfx11xx/gfx12xx, e.g. the Radeon AI PRO R9700). On ROCm, PyTorch exposes the
+> usual `torch.cuda.*` (HIP) API, so device type stays `cuda` throughout. If both a
+> discrete GPU and an integrated GPU (iGPU) are visible, nanochat automatically
+> selects the discrete card (most compute units) for single-process runs.
 
 ### Reproduce and talk to GPT-2
 
@@ -106,6 +113,7 @@ nanochat does not use `torch.amp.autocast`. Instead, precision is managed explic
 
 | Hardware | Default dtype | Why |
 |----------|--------------|-----|
+| AMD ROCm RDNA3/RDNA4 (gfx11xx/gfx12xx) | `bfloat16` | Native bf16 support |
 | CUDA SM 80+ (A100, H100, ...) | `bfloat16` | Native bf16 tensor cores |
 | CUDA SM < 80 (V100, T4, ...) | `float32` | No bf16; fp16 available via `NANOCHAT_DTYPE=float16` (uses GradScaler) |
 | CPU / MPS | `float32` | No reduced-precision tensor cores |

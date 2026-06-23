@@ -12,7 +12,7 @@ dependencies = [
     "rustbpe>=0.1.0",
     "tiktoken>=0.11.0",
     "tokenizers>=0.22.0",
-    "torch==2.9.1",
+    "torch==2.11.0",
     "uvicorn>=0.36.0",
     "wandb>=0.21.3",
 ]
@@ -35,11 +35,16 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
-# target torch to cuda 12.8 or CPU
+# target torch to ROCm 7.2 or CPU (CUDA is no longer the default; the `gpu` extra is ROCm)
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu128", extra = "gpu" },
+    { index = "pytorch-rocm", extra = "gpu" },
+]
+# torch's ROCm build depends on triton-rocm, which is only published on the
+# PyTorch ROCm index. Route it there (the index is `explicit = true`).
+triton-rocm = [
+    { index = "pytorch-rocm", extra = "gpu" },
 ]
 
 [[tool.uv.index]]
@@ -48,17 +53,20 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-rocm"
+url = "https://download.pytorch.org/whl/rocm7.2"
 explicit = true
 
 [project.optional-dependencies]
 cpu = [
     "setuptools>=65.0.0",
-    "torch==2.9.1",
+    "torch==2.11.0",
 ]
 gpu = [
-    "torch==2.9.1",
+    "torch==2.11.0",
+    # transitive dep of the ROCm torch build; declared here so the explicit
+    # pytorch-rocm index source mapping applies. Only installed on linux.
+    "triton-rocm==3.6.0 ; sys_platform == 'linux'",
 ]
 
 [tool.uv]
