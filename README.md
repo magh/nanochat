@@ -32,19 +32,18 @@ See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for more docs on how to interpret a
 nanochat uses [uv](https://docs.astral.sh/uv/) for dependency management. To install:
 
 ```bash
-uv sync --extra gpu    # Use for AMD ROCm 7.2 (gfx11xx/gfx12xx, e.g. Radeon AI PRO R9700)
-uv sync --extra cpu    # (or) Use for CPU-only / MPS
+uv sync
 source .venv/bin/activate
 ```
 
 For development (adds pytest, matplotlib, ipykernel, transformers, etc.):
 
 ```bash
-uv sync --extra gpu --group dev
+uv sync --group dev
 ```
 
-> **Note on GPU backend:** the `gpu` extra installs PyTorch built for **AMD ROCm 7.2**
-> (CUDA is no longer the default). It targets RDNA3/RDNA4 consumer/pro cards
+> **Note on GPU backend:** nanochat installs PyTorch built for **AMD ROCm 7.2**
+> (CUDA and CPU/MPS are not used). It targets RDNA3/RDNA4 consumer/pro cards
 > (gfx11xx/gfx12xx, e.g. the Radeon AI PRO R9700). On ROCm, PyTorch exposes the
 > usual `torch.cuda.*` (HIP) API, so device type stays `cuda` throughout. If both a
 > discrete GPU and an integrated GPU (iGPU) are visible, nanochat automatically
@@ -102,10 +101,6 @@ This uses wandb (run name "d12"), only runs the CORE metric on last step, and it
 See an example [here](https://github.com/karpathy/nanochat/pull/498#issuecomment-3850720044).
 
 The important thing to note is that nanochat is written and configured around one single dial of complexity - the depth of the transformer. This single integer automatically determines all other hyperparameters (the width of the transformer, number of heads, learning rate adjustments, training horizons, weight decays, ...) so that the trained model comes out compute optimal. The idea is that the user doesn't have to think about or set any of this, they are simply asking for a smaller or bigger model using `--depth`, and everything "just works". By sweeping out the depth, you achieve the nanochat miniseries of compute optimal models at various sizes. GPT-2 capability model (which is of most interest at the moment) happens to be somewhere around d24-d26 range with the current code. But any candidate changes to the repo have to be principled enough that they work for all settings of depth.
-
-## Running on CPU / MPS
-
-The script [runs/runcpu.sh](runs/runcpu.sh) shows a very simple example of running on CPU or Apple Silicon. It dramatically shrinks the LLM that is being trained to make things fit into a reasonable time interval of a few ten minutes of training. You will not get strong results in this way.
 
 ## Precision / dtype
 
@@ -169,7 +164,6 @@ I've published a number of guides that might contain helpful information, most r
 ├── pyproject.toml
 ├── runs
 │   ├── miniseries.sh               # Miniseries training script
-│   ├── runcpu.sh                   # Small example of how to run on CPU/MPS
 │   ├── scaling_laws.sh             # Scaling laws experiments
 │   └── speedrun.sh                 # Train the ~$100 nanochat d20
 ├── scripts
