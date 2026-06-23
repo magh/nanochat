@@ -12,13 +12,25 @@ import torch.distributed as dist
 from torch import Tensor
 from nanochat.common import COMPUTE_DTYPE
 
+# torch.compile of the fused optimizer steps miscompiles on ROCm/HIP (inductor on
+# gfx1201/RDNA4 produces inf/NaN in the AdamW bias-correction path, corrupting the
+# weights from the second optimizer step onward). The optimizer step is elementwise
+# and a negligible fraction of step time, so we simply run it eagerly there. The big
+# torch.compile win (the model forward/backward) is unaffected and stays enabled.
+_IS_ROCM = torch.version.hip is not None
+
+def _optim_compile(fn):
+    if _IS_ROCM:
+        return fn
+    return torch.compile(fn, dynamic=False, fullgraph=True)
+
 # -----------------------------------------------------------------------------
 """
 Good old AdamW optimizer, fused kernel.
 https://arxiv.org/abs/1711.05101
 """
 
-@torch.compile(dynamic=False, fullgraph=True)
+@_optim_compile
 def adamw_step_fused(
     p: Tensor,              # (32768, 768) - parameter tensor
     grad: Tensor,           # (32768, 768) - gradient, same shape as p
@@ -88,7 +100,7 @@ polar_express_coeffs = [
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
 ]
 
-@torch.compile(dynamic=False, fullgraph=True)
+@_optim_compile
 def muon_step_fused(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     stacked_params: Tensor,         # (12, 768, 3072) - stacked parameters
