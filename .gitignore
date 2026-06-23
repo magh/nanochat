@@ -11,3 +11,8 @@ eval_bundle/
 # Local setup
 CLAUDE.md
 wandb/
+
+# autoresearch loop artifacts (keep results/log untracked)
+research/results.tsv
+research/run.log
+run.log
